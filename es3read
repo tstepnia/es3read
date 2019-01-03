@@ -1,0 +1,46 @@
+#!/bin/bash
+
+
+received="$(ping -W 1 -c 1 192.168.1.8 | grep received | awk {'print $4'})"
+
+function listen {
+	/usr/bin/nc -i1 -4ulo /tmp/ncin 40000 1>/dev/null 2>/dev/null &
+}
+
+function query {
+	echo '130000000a03a4dc1140d63c04366f' \
+	 | xxd -r -p | nc -p 40000 -un 192.168.1.8 5987	
+	sleep .1
+	
+	echo '230000001601fa4c9b5fe88f559834b67200aee471e7a4dc000064' \
+	 | xxd -r -p | nc -p 40000 -un 192.168.1.8 5987
+	sleep .1
+
+	echo '830000000f010089af00aa010001000300001e33' \
+	 | xxd -r -p | nc -p 40000 -un 192.168.1.8 5987
+	sleep 1
+}
+
+function process {
+
+	reply="$(xxd -ps -s -40 -c 256 /tmp/ncin | grep 00aa0100030020 | wc -l)"
+#	echo $reply
+	if [ "$reply" == "1" ] ; then
+
+		/usr/bin/od -j115 -d /tmp/ncin | head -n 1 | \
+		awk '{ print "mode " $2 " PV " $3/10 "V battery " $4/10 "V charge " $5/10 "A" }'
+
+	fi
+
+}
+
+if [ "$received" = "1" ] ; then
+
+	listen
+	query
+
+	wait
+	process	
+	
+fi
+
